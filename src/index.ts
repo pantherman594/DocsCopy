@@ -41,32 +41,55 @@ app.get('/:fileId', async (req, res) => {
     res.sendStatus(500);
   }
 
+  let originalName;
+
+  try {
+    const original = await drive.files.get({ fileId });
+
+    if (!(original.data.mimeType || '').startsWith('application/vnd.google-apps.')) {
+      res.send('This only works with Google Docs, Slides, and Sheets files.');
+      return;
+    }
+
+    originalName = original.data.name;
+  } catch (err) {
+    if (err.response.status === 404) {
+      res.send('This file cannot be copied (is it publicly available?).');
+      return;
+    }
+
+    console.error(err);
+    renderFailure();
+    return;
+  }
+
   try {
     const copy = await drive.files.copy({ fileId });
 
-    if (copy.status !== 200 || !copy.data.id) {
-      console.error(copy);
+    if (!copy.data.id) {
       renderFailure();
       return;
     }
 
     const id = copy.data.id;
 
-    const perm = await drive.permissions.create({
+    const promises = [];
+
+    promises.push(drive.files.update({ fileId: id, requestBody: { name: originalName } }));
+
+    promises.push(drive.permissions.create({
       fileId: id,
       requestBody: {
         role: 'writer',
         type: 'anyone',
       },
-    });
+    }));
 
-    if (perm.status !== 200) {
-      console.error(perm);
-      renderFailure();
-      return;
-    }
+    promises.push(drive.files.get({ fileId: id, fields: 'webViewLink' }));
 
-    res.redirect(`https://docs.google.com/document/d/${id}/edit`);
+    const [,, newFile] = await Promise.all(promises);
+
+    res.redirect(newFile.data.webViewLink!);
   } catch (err) {
     console.error(err);
     renderFailure();
