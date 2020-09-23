@@ -1,12 +1,13 @@
 import cors from 'cors';
 import express from 'express';
 import { google } from 'googleapis';
+import path from 'path';
 
 const PORT = process.env.PORT || 5000;
 const app = express();
 
 const auth = new google.auth.GoogleAuth({
-  keyFile: './credentials.json',
+  keyFile: path.join(__dirname, '../credentials.json'),
   scopes: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/drive.file'],
 });
 
